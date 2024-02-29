@@ -1,0 +1,61 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+contract DecentralizedIdentity {
+    struct Identity {
+        address owner;
+        bool isRevoked;
+        mapping(string => string) attributes;
+        mapping(address => bool) verifiers;
+    }
+
+    mapping(bytes32 => Identity) public identities;
+    mapping(address => mapping(bytes32 => bool)) public accessControl;
+
+    event DIDCreated(bytes32 indexed did, address indexed owner);
+    event DIDAttributeAdded(bytes32 indexed did, string key, string value);
+    event DIDRevoked(bytes32 indexed did);
+    event DIDVerifierAdded(bytes32 indexed did, address indexed verifier);
+    event AccessGranted(bytes32 indexed did, address indexed requester);
+    event AccessRevoked(bytes32 indexed did, address indexed requester);
+
+    function createDID(bytes32 _did) external {
+        require(identities[_did].owner == address(0), "DID already exists");
+        identities[_did].owner = msg.sender;
+        emit DIDCreated(_did, msg.sender);
+    }
+
+    function addAttribute(bytes32 _did, string memory _key, string memory _value) external {
+        require(identities[_did].owner == msg.sender, "Only owner can add attributes");
+        identities[_did].attributes[_key] = _value;
+        emit DIDAttributeAdded(_did, _key, _value);
+    }
+
+    function getAttribute(bytes32 _did, string memory _key) external view returns (string memory) {
+        return identities[_did].attributes[_key];
+    }
+
+    function revokeDID(bytes32 _did) external {
+        require(identities[_did].owner == msg.sender, "Only owner can revoke DID");
+        identities[_did].isRevoked = true;
+        emit DIDRevoked(_did);
+    }
+
+    function addVerifier(bytes32 _did, address _verifier) external {
+        require(identities[_did].owner == msg.sender, "Only owner can add verifiers");
+        identities[_did].verifiers[_verifier] = true;
+        emit DIDVerifierAdded(_did, _verifier);
+    }
+
+    function grantAccess(bytes32 _did, address _requester) external {
+        require(identities[_did].owner == msg.sender || identities[_did].verifiers[msg.sender], "Only owner or verifier can grant access");
+        accessControl[_requester][_did] = true;
+        emit AccessGranted(_did, _requester);
+    }
+
+    function revokeAccess(bytes32 _did, address _requester) external {
+        require(identities[_did].owner == msg.sender || identities[_did].verifiers[msg.sender], "Only owner or verifier can revoke access");
+        accessControl[_requester][_did] = false;
+        emit AccessRevoked(_did, _requester);
+    }
+}
